@@ -6,6 +6,8 @@ import { getEntryPoint } from "@zerodev/sdk/constants";
 import { baseSepolia } from "viem/chains";
 
 export const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID;
+console.log("[ENV DEBUG] NEXT_PUBLIC_PROJECT_ID:", PROJECT_ID ? `${PROJECT_ID.substring(0, 8)}...` : "MISSING");
+
 export const kernelVersion = KERNEL_V3_3;
 export const kernelAddresses = KernelVersionToAddressesMap[kernelVersion];
 export const sepoliaBundlerRpc = `https://rpc.zerodev.app/api/v3/${PROJECT_ID}/chain/11155111`;
@@ -14,6 +16,7 @@ export const baseSepoliaBundlerRpc = `https://rpc.zerodev.app/api/v3/${PROJECT_I
 export const baseSepoliaPaymasterRpc = `https://rpc.zerodev.app/api/v3/${PROJECT_ID}/chain/84532`;
 export const entryPoint = getEntryPoint("0.7");
 export const TURNKEY_ORG_ID = process.env.NEXT_PUBLIC_TURNKEY_ORGANIZATION_ID!;
+console.log("[ENV DEBUG] NEXT_PUBLIC_TURNKEY_ORGANIZATION_ID:", TURNKEY_ORG_ID ? `${TURNKEY_ORG_ID.substring(0, 8)}...` : "MISSING");
 export const EXPLORER_URL = baseSepolia.blockExplorers.default.url;
 
 export const CONTRACT_ADDRESS = "0xC8014e9D37cc59Fed1988aCbfFE59246A16374AA";

@@ -3,6 +3,7 @@ import { isZeroDevConnector } from "@dynamic-labs/ethereum-aa";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { useQuery } from "@tanstack/react-query";
 import { signerToEcdsaValidator } from "@zerodev/ecdsa-validator";
+import { KernelAccountClient } from "@zerodev/sdk";
 import React from "react";
 import { baseSepolia } from "viem/chains";
 import { usePublicClient } from "wagmi";
@@ -95,7 +96,7 @@ const DynamicAccountProvider = ({ children }: { children: React.ReactNode }) => 
         login: () => Promise.resolve(),
         embeddedWallet,
         isDeployed: Boolean(isDeployed),
-        kernelAccountClient: kernelAccountClients?.kernelAccountClient,
+        kernelAccountClient: kernelAccountClients?.kernelAccountClient as KernelAccountClient | undefined,
         ecdsaValidator: kernelAccountClients?.ecdsaValidator,
         intentClient: null,
         createIntentClient: async () => {
