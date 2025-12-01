@@ -2,6 +2,13 @@ import { ReactScan } from "@/components/react-scan";
 import React from "react";
 import { Fira_Code, Monomaniac_One, Noto_Sans } from "next/font/google";
 import { Metadata } from "next";
+import { ReactQueryProvider } from "@/context/react-query";
+import AccountProviderWrapper from "@/context/wrapper";
+import Navigation from "@/components/navigation";
+import Footer from "@/components/footer";
+import { Toaster } from "sonner";
+import "@/app/globals.css";
+import "@turnkey/sdk-react/styles";
 
 const firaCode = Fira_Code({
   variable: "--font-fira-code",
@@ -29,7 +36,7 @@ export const metadata: Metadata = {
     icon: "/favicon.ico",
   },
   openGraph: {
-    title: "7702 Examples - ZeroDev",
+    title: "Cpay",
     description: "Explore practical examples of 7702 using ZeroDev and Embedded Wallets!",
     images: "/og-image.png",
   },
@@ -43,7 +50,16 @@ const RootLayout = ({ children }: { children: React.ReactNode }) => {
     >
       <ReactScan />
       <body className={`${firaCode.variable} ${monomaniacOne.variable} ${notoSans.variable} antialiased`}>
-        {children}
+        <ReactQueryProvider>
+          <AccountProviderWrapper initialProvider="privy">
+            <Navigation />
+            <div className="border-primary container mx-auto max-w-5xl space-y-12 overflow-hidden border-x-2 py-6">
+              <main className="space-y-12">{children}</main>
+            </div>
+            <Footer />
+            <Toaster richColors />
+          </AccountProviderWrapper>
+        </ReactQueryProvider>
       </body>
     </html>
   );

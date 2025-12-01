@@ -11,7 +11,7 @@ import { signerToEcdsaValidator } from "@zerodev/ecdsa-validator";
 import { createKernelAccount, createKernelAccountClient, createZeroDevPaymasterClient } from "@zerodev/sdk";
 import React, { useEffect, useMemo } from "react";
 import { createWalletClient, custom, Hex, http } from "viem";
-import { baseSepolia, sepolia } from "viem/chains";
+import { baseSepolia, sepolia , avalancheFuji, avalanche } from "viem/chains";
 import { usePublicClient } from "wagmi";
 import { AccountProviderContext, EmbeddedWallet } from "./provider-context";
 /**
@@ -128,7 +128,6 @@ const PrivyAccountProvider = ({ children }: { children: React.ReactNode }) => {
     enabled: !!baseSepoliaPublicClient && !!privyAccount && !!baseSepoliaPaymasterClient,
   });
 
- 
   /**
    * Handles the sign-in process by opening the Privy sign-in modal
    */

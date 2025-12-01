@@ -1,35 +1,33 @@
 "use client";
 
-import React, { useState } from 'react';
-import Link from 'next/link';
-import QRScanner from '../scanner-component';
-import Footer from '@/components/footer';
+import React, { useState } from "react";
+import Link from "next/link";
+import QRScanner from "./scanner-component";
+import Footer from "@/components/footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAccountProviderContext } from "@/context/account-providers/provider-context";
-import { EXPLORER_URL, ZERODEV_DECIMALS, ZERODEV_TOKEN_ADDRESS , CONTRACT_ADDRESS} from "@/lib/constants";
+import { EXPLORER_URL,ZERODEV_DECIMALS , ZERODEV_TOKEN_ADDRESS, CONTRACT_ADDRESS } from "@/lib/constants";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader, X, CheckCircle } from "lucide-react";
-import { useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
-import { encodeFunctionData, formatUnits, parseUnits, isAddress } from "viem";
+import { encodeFunctionData, formatUnits, isAddress, parseUnits } from "viem";
 import { baseSepolia } from "viem/chains";
 import { useBalance } from "wagmi";
-const paymentId = '0x0000000000000000000000000000000000000000000000000000000000000001';
-
+const paymentId = "0x0000000000000000000000000000000000000000000000000000000000000001";
 
 // Enhanced interfaces for better type safety
 interface QRPaymentData {
-  ma: string;  // merchant address
-  a: string;   // amount (now using 'a' instead of 'amount' to match your QR format)
+  ma: string; // merchant address
+  a: string; // amount (now using 'a' instead of 'amount' to match your QR format)
   txn?: string; // transaction type (optional)
 }
 
 export default function Scanner() {
   const [isScanning, setIsScanning] = useState<boolean>(false);
-  const [scanResult, setScanResult] = useState<string>('');
+  const [scanResult, setScanResult] = useState<string>("");
   const [scanHistory, setScanHistory] = useState<string[]>([]);
   const [parsedData, setParsedData] = useState<QRPaymentData | null>(null);
   const [amount, setAmount] = useState("");
@@ -52,20 +50,20 @@ export default function Scanner() {
   const parseQRPaymentData = (data: string): QRPaymentData | null => {
     try {
       const parsed = JSON.parse(data);
-      
+
       // Support both formats: {ma, a} and {ma, amount, txn}
       if (parsed.ma && (parsed.a || parsed.amount)) {
         return {
           ma: parsed.ma,
           a: parsed.a || parsed.amount,
-          txn: parsed.txn || 'payment'
+          txn: parsed.txn || "payment",
         };
       }
-      
-      throw new Error('Invalid payment QR format');
+
+      throw new Error("Invalid payment QR format");
     } catch (error) {
-      console.error('Failed to parse QR payment data:', error);
-      toast.error("Invalid QR format. Expected: {\"ma\": \"address\", \"a\": \"amount\"}");
+      console.error("Failed to parse QR payment data:", error);
+      toast.error('Invalid QR format. Expected: {"ma": "address", "a": "amount"}');
       return null;
     }
   };
@@ -76,135 +74,152 @@ export default function Scanner() {
       toast.error("Invalid merchant address format");
       return false;
     }
-    
+
     if (!data.a || parseFloat(data.a) <= 0) {
       toast.error("Invalid amount");
       return false;
     }
-    
+
     return true;
   };
 
   // Enhanced batch transaction mutation
 
-
   const {
     mutate: sendPaymentTransaction,
     isPending,
     data: userOpHash,
-    reset: resetTransaction
+    reset: resetTransaction,
   } = useMutation({
     mutationKey: ["qr-payment-batch", kernelAccountClient?.account?.address, amount, toAddress],
     mutationFn: async () => {
-  try {
-    if (!kernelAccountClient?.account) throw new Error("No kernel account client found");
-  if (!toAddress || !isAddress(toAddress)) throw new Error("Invalid merchant address");
-  if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) throw new Error("Invalid amount");
+      try {
+        if (!kernelAccountClient?.account) throw new Error("No kernel account client found");
+        if (!toAddress || !isAddress(toAddress)) throw new Error("Invalid merchant address");
+        if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) throw new Error("Invalid amount");
 
-  // Ensure amount is a string
-  // if (typeof amount !== "string") {
-  //   throw new Error("Amount must be a string for parseUnits");
-  // }
+        // Ensure amount is a string
+        // if (typeof amount !== "string") {
+        //   throw new Error("Amount must be a string for parseUnits");
+        // }
 
-  // Now parse when safe
-  // const amountInWei = parseUnits(amount, ZERODEV_DECIMALS);
+        // Now parse when safe
+        const amountInWei = parseUnits(amount, ZERODEV_DECIMALS);
 
-   
-    const approveData = encodeFunctionData({
-      abi: [
-        {
-          name: "approve",
-          type: "function",
-          inputs: [
-            { name: "spender", type: "address" },
-            { name: "amount", type: "uint256" },
+        const approveData = encodeFunctionData({
+          abi: [
+            {
+              name: "approve",
+              type: "function",
+              inputs: [
+                { name: "spender", type: "address" },
+                { name: "amount", type: "uint256" },
+              ],
+            },
           ],
-        },
-      ],
-      functionName: "approve",
-      args: [CONTRACT_ADDRESS, amount],
-    });
-    console.log("approveData encoded successfully");
+          functionName: "approve",
+          args: [CONTRACT_ADDRESS, amountInWei],
+        });
+        console.log("approveData encoded successfully");
 
-    const payData = encodeFunctionData({
-      abi: [
-        {
-          name: "pay",
-          type: "function",
-          inputs: [
-            { name: "paymentId", type: "bytes32" },
-            { name: "token", type: "address" },
-            { name: "amount", type: "uint256" },
+        const payData = encodeFunctionData({
+          abi: [
+            {
+              name: "pay",
+              type: "function",
+              inputs: [
+                { name: "paymentId", type: "bytes32" },
+                { name: "token", type: "address" },
+                { name: "amount", type: "uint256" },
+              ],
+            },
           ],
-        },
-      ],
-      functionName: "pay",
-      args: [paymentId, ZERODEV_TOKEN_ADDRESS, amount],
-    });
-    console.log("payData encoded successfully");
+          functionName: "pay",
+          args: [paymentId, ZERODEV_TOKEN_ADDRESS, amountInWei],
+        });
+        console.log("payData encoded successfully");
 
-    return kernelAccountClient.sendUserOperation({
-      calls: [
-        {
-          to: ZERODEV_TOKEN_ADDRESS,
-          value: BigInt(0),
-          data: approveData,
-        },
-        {
-          to: CONTRACT_ADDRESS,
-          value: BigInt(0),
-          data: payData,
-        },
-      ],
-    });
-  } catch (error) {
-    console.error("Error in mutationFn:", error);
+        return kernelAccountClient.sendUserOperation({
+          calls: [
+            {
+              to: ZERODEV_TOKEN_ADDRESS,
+              value: BigInt(0),
+              data: approveData,
+            },
+            {
+              to: CONTRACT_ADDRESS,
+              value: BigInt(0),
+              data: payData,
+            },
+          ],
+        });
+      } catch (error) {
+        console.error("Error in mutationFn:", error);
 
-    console.log("=== Debugging encodeFunctionData inputs ===");
-    console.log("paymentId:", paymentId, typeof paymentId, paymentId.length);
-    console.log("ZERODEV_TOKEN_ADDRESS:", ZERODEV_TOKEN_ADDRESS, typeof ZERODEV_TOKEN_ADDRESS, ZERODEV_TOKEN_ADDRESS.length);
-    console.log("CONTRACT_ADDRESS:", CONTRACT_ADDRESS, typeof CONTRACT_ADDRESS, CONTRACT_ADDRESS.length);
-    // console.log("amountInWei:", amountInWei, typeof amountInWei);
-     // Try encoding to catch any errors early
-     console.log("=== DEBUG ENCODE INPUTS ===");
-     console.log("paymentId value:", paymentId, "\ntype:", typeof paymentId, "\nlength:", paymentId?.length);
-     console.log("ZERODEV_TOKEN_ADDRESS value:", ZERODEV_TOKEN_ADDRESS, "\ntype:", typeof ZERODEV_TOKEN_ADDRESS, "\nlength:", ZERODEV_TOKEN_ADDRESS?.length);
-     console.log("CONTRACT_ADDRESS value:", CONTRACT_ADDRESS, "\ntype:", typeof CONTRACT_ADDRESS, "\nlength:", CONTRACT_ADDRESS?.length);
-    //  console.log("amountInWei value:", amountInWei, "\ntype:", typeof amountInWei, "\nisBigInt:", typeof amountInWei === 'bigint');
-     // Check: Is paymentId a valid 32-byte hex string?
-     const isBytes32 = typeof paymentId === "string" && /^0x[0-9a-fA-F]{64}$/.test(paymentId);
-     console.log("paymentId is valid bytes32 hex:", isBytes32);
-     
-     // Check: Are addresses valid?
-    //  const isAddress = (addr) => typeof addr === "string" && /^0x[0-9a-fA-F]{40}$/.test(addr);
-     console.log("ZERODEV_TOKEN_ADDRESS is valid:", isAddress(ZERODEV_TOKEN_ADDRESS));
-     console.log("CONTRACT_ADDRESS is valid:", isAddress(CONTRACT_ADDRESS));
-     
-     // If not valid, print an error
-     if (!isBytes32) {
-       console.error("paymentId is not valid bytes32 hex string. Use a helper to pad/convert!");
-     }
-     if (!isAddress(ZERODEV_TOKEN_ADDRESS)) {
-       console.error("ZERODEV_TOKEN_ADDRESS is not a valid address.");
-     }
-     if (!isAddress(CONTRACT_ADDRESS)) {
-       console.error("CONTRACT_ADDRESS is not a valid address.");
-     }
-    //  if (typeof amountInWei !== "bigint") {
-    //    console.error("amountInWei must be a BigInt.");
-    //  }
-    throw error;
-  }
-},
+        console.log("=== Debugging encodeFunctionData inputs ===");
+        console.log("paymentId:", paymentId, typeof paymentId, paymentId.length);
+        console.log(
+          "ZERODEV_TOKEN_ADDRESS:",
+          ZERODEV_TOKEN_ADDRESS,
+          typeof ZERODEV_TOKEN_ADDRESS,
+          ZERODEV_TOKEN_ADDRESS.length,
+        );
+        console.log("CONTRACT_ADDRESS:", CONTRACT_ADDRESS, typeof CONTRACT_ADDRESS, CONTRACT_ADDRESS.length);
+        // console.log("amountInWei:", amountInWei, typeof amountInWei);
+        // Try encoding to catch any errors early
+        console.log("=== DEBUG ENCODE INPUTS ===");
+        console.log("paymentId value:", paymentId, "\ntype:", typeof paymentId, "\nlength:", paymentId?.length);
+        console.log(
+          "ZERODEV_TOKEN_ADDRESS value:",
+          ZERODEV_TOKEN_ADDRESS,
+          "\ntype:",
+          typeof ZERODEV_TOKEN_ADDRESS,
+          "\nlength:",
+          ZERODEV_TOKEN_ADDRESS?.length,
+        );
+        console.log(
+          "CONTRACT_ADDRESS value:",
+          CONTRACT_ADDRESS,
+          "\ntype:",
+          typeof CONTRACT_ADDRESS,
+          "\nlength:",
+          CONTRACT_ADDRESS?.length,
+        );
+        //  console.log("amountInWei value:", amountInWei, "\ntype:", typeof amountInWei, "\nisBigInt:", typeof amountInWei === 'bigint');
+        // Check: Is paymentId a valid 32-byte hex string?
+        const isBytes32 = typeof paymentId === "string" && /^0x[0-9a-fA-F]{64}$/.test(paymentId);
+        console.log("paymentId is valid bytes32 hex:", isBytes32);
+
+        // Check: Are addresses valid?
+        //  const isAddress = (addr) => typeof addr === "string" && /^0x[0-9a-fA-F]{40}$/.test(addr);
+        console.log("ZERODEV_TOKEN_ADDRESS is valid:", isAddress(ZERODEV_TOKEN_ADDRESS));
+        console.log("CONTRACT_ADDRESS is valid:", isAddress(CONTRACT_ADDRESS));
+
+        // If not valid, print an error
+        if (!isBytes32) {
+          console.error("paymentId is not valid bytes32 hex string. Use a helper to pad/convert!");
+        }
+        if (!isAddress(ZERODEV_TOKEN_ADDRESS)) {
+          console.error("ZERODEV_TOKEN_ADDRESS is not a valid address.");
+        }
+        if (!isAddress(CONTRACT_ADDRESS)) {
+          console.error("CONTRACT_ADDRESS is not a valid address.");
+        }
+        //  if (typeof amountInWei !== "bigint") {
+        //    console.error("amountInWei must be a BigInt.");
+        //  }
+        throw error;
+      }
+    },
 
     onSuccess: (data) => {
       refetchBalance();
       toast.success("Payment transaction sent successfully!");
-      console.log('Payment transaction hash:', data);
+      console.log("Payment transaction hash:", data);
     },
     onError: (error) => {
       toast.error("Payment transaction failed");
-      console.error('Payment transaction error:', error);
+      console.error("Payment transaction error:", error);
     },
   });
 
@@ -221,9 +236,9 @@ export default function Scanner() {
 
   // Handle successful QR scan with enhanced parsing
   const handleScanResult = (data: string): void => {
-    console.log('Scanned QR data:', data);
+    console.log("Scanned QR data:", data);
     setScanResult(data);
-    setScanHistory(prev => [data, ...prev.slice(0, 9)]);
+    setScanHistory((prev) => [data, ...prev.slice(0, 9)]);
     setIsScanning(false);
 
     // Parse QR payment data
@@ -246,16 +261,16 @@ export default function Scanner() {
   // Clear functions
   const clearParsedData = (): void => {
     setParsedData(null);
-    setAmount('');
-    setToAddress('');
-    setScanResult('');
+    setAmount("");
+    setToAddress("");
+    setScanResult("");
     resetTransaction();
     setIsManualMode(false);
   };
 
   const clearHistory = (): void => {
     setScanHistory([]);
-    setScanResult('');
+    setScanResult("");
   };
 
   // Computed values
@@ -264,58 +279,29 @@ export default function Scanner() {
 
   return (
     <>
-      {/* Navigation */}
-      {/* <div className="border-primary flex border-y-2">
-        <header className="border-primary mx-auto flex w-full max-w-5xl items-center justify-between border-x-2">
-          <div className="bg-primary flex items-center gap-2 px-8 py-4 font-mono text-white">
-            <Link href="/privy" className="text-2xl hover:underline">
-              Cpay
-            </Link>
-          </div>
-          <nav className="flex gap-6">
-            <Link href="/privy" className="hover:text-primary px-4 py-2">
-              Home
-            </Link>
-            <Link href="/scanner" className="hover:text-primary px-4 py-2">
-              Scanner
-            </Link>
-            <Link href="https://docs.zerodev.app" className="hover:text-primary px-4 py-2">
-              Docs
-            </Link>
-            <Link
-              href="https://eips.ethereum.org/EIPS/eip-7702"
-              className="hover:text-primary px-4 py-2"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              EIP
-            </Link>
-          </nav>
-        </header>
-      </div> */}
-
+      
       {/* Main Content */}
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
         <div className="container mx-auto max-w-6xl px-6 py-12">
           <main className="space-y-8">
             {/* Header */}
-            <div className="text-center mb-12">
-              <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-4">
+            <div className="mb-12 text-center">
+              <h1 className="mb-4 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent md:text-5xl">
                 QR Payment Scanner
               </h1>
-              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              <p className="mx-auto max-w-2xl text-xl text-gray-600">
                 Scan payment QR codes and execute instant batch transactions
               </p>
             </div>
 
-            <div className="grid lg:grid-cols-2 gap-8">
+            <div className="grid gap-8 lg:grid-cols-2">
               {/* Scanner Section */}
               <div className="space-y-6">
                 {/* QR Scanner Card */}
                 {!parsedData && !isManualMode && (
-                  <Card className="bg-white/80 backdrop-blur-sm border-gray-200 shadow-xl">
+                  <Card className="border-gray-200 bg-white/80 shadow-xl backdrop-blur-sm">
                     <CardContent className="p-8">
-                      <QRScanner 
+                      <QRScanner
                         onScanResult={handleScanResult}
                         isScanning={isScanning}
                         onStartScan={() => setIsScanning(true)}
@@ -327,12 +313,10 @@ export default function Scanner() {
 
                 {/* Manual Entry Option */}
                 {!parsedData && !isScanning && (
-                  <Card className="bg-white/80 backdrop-blur-sm border-gray-200 shadow-xl">
+                  <Card className="border-gray-200 bg-white/80 shadow-xl backdrop-blur-sm">
                     <CardContent className="pt-6">
                       <div className="text-center">
-                        <p className="text-gray-600 mb-4">
-                          Can't scan QR code? Enter payment details manually
-                        </p>
+                        <p className="mb-4 text-gray-600">Can't scan QR code? Enter payment details manually</p>
                         <Button
                           variant="outline"
                           onClick={() => setIsManualMode(true)}
@@ -347,7 +331,7 @@ export default function Scanner() {
 
                 {/* Current Result Display */}
                 {scanResult && (
-                  <Card className="bg-white/80 backdrop-blur-sm border-gray-200 shadow-xl">
+                  <Card className="border-gray-200 bg-white/80 shadow-xl backdrop-blur-sm">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-3">
                         <CheckCircle className="h-5 w-5 text-green-500" />
@@ -355,11 +339,9 @@ export default function Scanner() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                        <code className="text-sm break-all font-mono text-gray-800 block mb-4">
-                          {scanResult}
-                        </code>
-                        <Button 
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <code className="mb-4 block font-mono text-sm break-all text-gray-800">{scanResult}</code>
+                        <Button
                           variant="outline"
                           onClick={() => navigator.clipboard?.writeText(scanResult)}
                           className="w-full"
@@ -376,7 +358,7 @@ export default function Scanner() {
               <div className="space-y-6">
                 {/* Payment Form */}
                 {(parsedData || isManualMode) && (
-                  <Card className="bg-white/80 backdrop-blur-sm border-gray-200 shadow-xl">
+                  <Card className="border-gray-200 bg-white/80 shadow-xl backdrop-blur-sm">
                     <CardHeader>
                       <CardTitle className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -404,7 +386,7 @@ export default function Scanner() {
                           disabled={!!parsedData && !isManualMode}
                         />
                       </div>
-                      
+
                       <div className="flex items-center gap-2">
                         <Badge className="h-9 text-sm font-medium">2. Merchant ADDRESS</Badge>
                         <Input
@@ -419,22 +401,23 @@ export default function Scanner() {
 
                       {/* Address validation feedback */}
                       {toAddress && !isAddress(toAddress) && (
-                        <p className="text-red-600 text-sm">Invalid merchant address format</p>
+                        <p className="text-sm text-red-600">Invalid merchant address format</p>
                       )}
 
                       {/* Payment info display */}
                       {parsedData && (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                          <p className="text-green-800 text-sm font-medium">
+                        <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                          <p className="text-sm font-medium text-green-800">
                             Payment from QR code: {parsedData.a} tokens to {parsedData.ma.substring(0, 8)}...
                           </p>
                         </div>
                       )}
 
                       {balance && (
-                        <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="rounded-lg bg-gray-50 p-3">
                           <p className="text-sm text-gray-600">
-                            <strong>Current Balance:</strong> {formatUnits(balance?.value ?? BigInt(0), balance?.decimals ?? 18)} {"USDC"}
+                            <strong>Current Balance:</strong>{" "}
+                            {formatUnits(balance?.value ?? BigInt(0), ZERODEV_DECIMALS ?? 18)} {"USDC"}
                           </p>
                         </div>
                       )}
@@ -450,20 +433,18 @@ export default function Scanner() {
                             Processing Payment...
                           </>
                         ) : (
-                          'Execute Payment Transaction'
+                          "Execute Payment Transaction"
                         )}
                       </Button>
 
                       {userOpReceipt && (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                          <p className="text-green-800 text-sm font-medium mb-2">
-                            Payment Successful! ✅
-                          </p>
+                        <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+                          <p className="mb-2 text-sm font-medium text-green-800">Payment Successful! ✅</p>
                           <a
                             href={`${EXPLORER_URL}/tx/${userOpReceipt.receipt.transactionHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-blue-600 hover:text-blue-800 text-sm font-medium underline underline-offset-4"
+                            className="text-sm font-medium text-blue-600 underline underline-offset-4 hover:text-blue-800"
                           >
                             View Transaction on Explorer
                           </a>
@@ -475,15 +456,15 @@ export default function Scanner() {
 
                 {/* Scan History */}
                 {scanHistory.length > 0 && (
-                  <Card className="bg-white/80 backdrop-blur-sm border-gray-200 shadow-xl">
+                  <Card className="border-gray-200 bg-white/80 shadow-xl backdrop-blur-sm">
                     <CardHeader>
                       <CardTitle className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                          <div className="h-3 w-3 rounded-full bg-purple-500"></div>
                           <span>Scan History</span>
                           <Badge variant="secondary">{scanHistory.length}</Badge>
                         </div>
-                        <Button 
+                        <Button
                           variant="outline"
                           size="sm"
                           onClick={clearHistory}
@@ -493,24 +474,25 @@ export default function Scanner() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-3 max-h-80 overflow-y-auto">
+                      <div className="max-h-80 space-y-3 overflow-y-auto">
                         {scanHistory.map((item, index) => (
-                          <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                          <div
+                            key={index}
+                            className="rounded-lg border border-gray-200 bg-gray-50 p-4"
+                          >
                             <div className="flex items-start gap-3">
                               <Badge variant="outline">#{index + 1}</Badge>
-                              <div className="flex-1 min-w-0">
-                                <code className="text-sm font-mono text-gray-800 break-all block mb-2">
-                                  {item}
-                                </code>
+                              <div className="min-w-0 flex-1">
+                                <code className="mb-2 block font-mono text-sm break-all text-gray-800">{item}</code>
                                 <div className="flex gap-2">
-                                  <Button 
+                                  <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => navigator.clipboard?.writeText(item)}
                                   >
                                     Copy
                                   </Button>
-                                  <Button 
+                                  <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => {
@@ -535,15 +517,25 @@ export default function Scanner() {
 
                 {/* Empty State */}
                 {!scanResult && scanHistory.length === 0 && !parsedData && !isManualMode && (
-                  <Card className="bg-white/80 backdrop-blur-sm border-gray-200 shadow-xl">
+                  <Card className="border-gray-200 bg-white/80 shadow-xl backdrop-blur-sm">
                     <CardContent className="p-8 text-center">
-                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+                        <svg
+                          className="h-8 w-8 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+                          />
                         </svg>
                       </div>
-                      <h3 className="text-lg font-semibold text-gray-800 mb-2">No QR codes scanned yet</h3>
-                      <p className="text-gray-600 text-sm">Start scanning payment QR codes to execute transactions</p>
+                      <h3 className="mb-2 text-lg font-semibold text-gray-800">No QR codes scanned yet</h3>
+                      <p className="text-sm text-gray-600">Start scanning payment QR codes to execute transactions</p>
                     </CardContent>
                   </Card>
                 )}
@@ -652,7 +644,8 @@ export default function Scanner() {
         }
 
         @keyframes pulse {
-          0%, 100% {
+          0%,
+          100% {
             border-color: #4f46e5;
           }
           50% {
@@ -674,11 +667,11 @@ export default function Scanner() {
           :global(.qr-reader) {
             max-width: 100%;
           }
-          
+
           :global(.qr-reader video) {
             height: 250px;
           }
-          
+
           :global(.qr-frame) {
             width: 150px;
             height: 150px;
